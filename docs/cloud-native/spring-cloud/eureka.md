@@ -1,0 +1,474 @@
+# Spring Cloud Eureka
+
+## Spring Cloud Eureka 是什么？
+
+Spring Cloud Eureka 是 Spring Cloud Netflix 微服务套件的一部分，基于 Netflix Eureka 做了二次封装，主要负责实现微服务架构中的服务治理功能。
+
+Spring Cloud Eureka 是一个基于 REST 的服务，并且提供了基于 Java 的客户端组件，能够非常方便地将服务注册到 Spring Cloud Eureka 中进行统一管理。
+
+服务治理是微服务架构中必不可少的一部分，服务治理必须要有一个注册中心，除了用 Eureka 作为注册中心外，我们还可以使用 Consul、Etcd、Zookeeper 等来作为服务的注册中心。
+
+至于使用哪种方式都是可以的，注册中心无非就是管理所有服务的信息和状态。当需要调用某一个服务的时候，先去 Eureka 中去拉取服务列表，查看调用的服务在不在其中，在的话就拿到服务地址、端口等信息，然后调用。
+
+注册中心带来的好处就是，不需要知道有多少提供方，你只需要关注注册中心即可。
+
+为什么 Eureka 比 Zookeeper 更适合作为注册中心呢？主要是因为 Eureka 是基于 AP 原则构建的，而 ZooKeeper 是基于 CP 原则构建的。
+
+在分布式系统领域有个著名的 CAP 定理，即 C 为数据一致性；A 为服务可用性；P 为服务对网络分区故障的容错性。这三个特性在任何分布式系统中都不能同时满足，最多同时满足两个。
+
+Zookeeper 有一个 Leader，而且在这个 Leader 无法使用的时候通过 Paxos（ZAB）算法选举出一个新的 Leader。这个 Leader 的任务就是保证写数据的时候只向这个 Leader 写入，Leader 会同步信息到其他节点。通过这个操作就可以保证数据的一致性。
+
+总而言之，想要保证 AP 就要用 Eureka，想要保证 CP 就要用 Zookeeper。
+
+Eureka 作为注册中心，其本质是存储了每个客户端的注册信息，Ribbon 在转发的时候会获取注册中心的服务列表，然后根据对应的路由规则来选择一个服务给 Feign 来进行调用。
+
+## 搭建 Eureka 服务注册中心
+
+### 1. 引入依赖
+
+首先创建一个 Maven 项目，取名为 eureka-server，在 pom.xml 中配置 Eureka 的依赖信息，代码如下所示。
+
+```xml
+<!-- Spring Boot -->
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.0.6.RELEASE</version>
+    <relativePath />
+</parent>
+
+<dependencies>
+    <!-- eureka -->
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>
+    </dependency>
+</dependencies>
+
+<!-- Spring Cloud -->
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-dependencies</artifactId>
+            <version>Finchley.SR2</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+### 2. 创建启动类
+
+创建一个启动类 EurekaServerApplication，代码如下所示。
+
+```java
+@EnableEurekaServer
+@SpringBootApplication
+    public static void main(String[] args) {
+        SpringApplication.run(EurekaServer Application.class, args);
+    }
+}
+```
+
+这里所说的启动类，跟我们之前讲的 Spring Boot 几乎完全一样，只是多了一个 @EnableEurekaServer 注解，表示开启 Eureka Server。
+
+接下来在 src/main/resources 下面创建一个 application.properties 属性文件，增加下面的配置：
+
+```properties
+spring.application.name=eureka-server
+server.port=8761
+# 由于该应用为注册中心, 所以设置为false, 代表不向注册中心注册自己
+eureka.client.register-with-eureka=false
+# 由于注册中心的职责就是维护服务实例, 它并不需要去检索服务, 所以也设置为 false
+eureka.client.fetch-registry=false
+```
+
+## 使用Eureka编写服务提供者
+
+### 1. 创建项目注册到 Eureka
+
+注册中心已经创建并且启动好了，接下来我们实现将一个服务提供者 eureka-client-user-service 注册到 Eureka 中，并提供一个接口给其他服务调用。
+
+首先还是创建一个 [Maven](http://c.biancheng.net/maven/) 项目，然后在 pom.xml 中增加相关依赖，代码如下所示。
+
+```xml
+<!-- Spring Boot -->
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.0.6.RELEASE</version>
+    <relativePath />
+</parent>
+
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- eureka -->
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+    </dependency>
+</dependencies>
+
+<!-- Spring Cloud -->
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-dependencies</artifactId>
+            <version>Finchley.SR2</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+创建一个启动类 App，代码如下所示。
+
+```java
+@SpringBootApplication
+@EnableDiscoveryClient
+public class App {
+    public static void main(String[] args) {
+        SpringApplication.run(App.class, args);
+    }
+}
+```
+
+启动类的方法与之前没有多大区别，只是注解换成 `@EnableDiscoveryClient`，表示当前服务是一个 Eureka 的客户端。
+
+接下来在 `src/main/resources` 下面创建一个 `application.properties` 属性文件，增加下面的配置：
+
+```properties
+spring.application.name= eureka-client-user-service
+server.port=8081
+eureka.client.serviceUrl.defaultZone=http://localhost:8761/eureka/
+# 采用IP注册
+eureka.instance.preferIpAddress=true
+# 定义实例ID格式
+eureka.instance.instance-id=${spring.application.name}:${spring.cloud.client.ip-address}:${server.port}
+```
+
+
+
+eureka.client.serviceUrl.defaultZone 的地址就是我们之前启动的 Eureka 服务的地址，在启动的时候需要将自身的信息注册到 Eureka 中去。
+
+执行 App 启动服务，我们可以看到控制台中有输出注册信息的日志：
+
+`DiscoveryClient_EUREKA-CLIENT-USER-SERVICE/eureka-client-user-service:192.168.31.245:8081 - registration status: 204`
+
+我们可以进一步检查服务是否注册成功。回到之前打开的 Eureka 的 Web 控制台，刷新页面，就可以看到新注册的服务信息了。
+
+### 2. 编写提供接口
+
+创建一个 Controller，提供一个接口给其他服务查询，代码如下所示。
+
+```java
+@RestController
+public class UserController {
+    @GetMapping("/user/hello")
+    public String hello() {
+        return “hello”;
+    }
+}
+```
+
+## 使用Eureka编写服务消费者
+
+### 1. 直接调用接口
+
+创建服务消费者，消费我们刚刚编写的 user/hello 接口，同样需要先创建一个 Maven 项目 eureka-client-article-service，然后添加依赖，依赖和服务提供者的一样，这里就不贴代码了。
+
+创建启动类 App，启动代码与前面所讲也是一样的。唯一不同的就是 application.properties 文件中的配置信息：
+
+```properties
+spring.application.name=eureka-client-article-service
+server.port=8082
+```
+
+RestTemplate 是 Spring 提供的用于访问 Rest 服务的客户端，RestTemplate 提供了多种便捷访问远程 Http 服务的方法，能够大大提高客户端的编写效率。我们通过配置 RestTemplate 来调用接口，代码如下所示。
+
+```java
+@Configuration
+public class BeanConfiguration {
+    @Bean
+    public RestTemplate getRestTemplate() {
+        return new RestTemplate();
+    }
+}
+```
+
+创建接口，在接口中调用 user/hello 接口，代码如下所示。
+
+```java
+@RestController
+public class ArticleController {
+    @Autowired
+    private RestTemplate restTemplate;
+    @GetMapping("/article /callHello")
+    public String callHello() {
+        return restTemplate.getForObject("http://localhost:8081/user/hello", String.class);
+    }
+}
+```
+
+### 2. 通过 Eureka 来消费接口
+
+上面提到的方法是直接通过服务接口的地址来调用的，和我们之前的做法一样，完全没有用到 Eureka 带给我们的便利。既然用了注册中心，那么客户端调用的时候肯定是不需要关心有多少个服务提供接口，下面我们来改造之前的调用代码。
+
+首先改造 RestTemplate 的配置，添加一个 `@LoadBalanced` 注解，这个注解会自动构造 `LoadBalancerClient` 接口的实现类并注册到 Spring 容器中，代码如下所示。
+
+```java
+@Configuration
+public class BeanConfiguration {
+    @Bean
+    @LoadBalanced
+    public RestTemplate getRestTemplate() {
+        return new RestTemplate();
+    }
+}
+```
+
+接下来就是改造调用代码，我们不再直接写固定地址，而是写成服务的名称，这个名称就是我们注册到 Eureka 中的名称，是属性文件中的 spring.application.name，相关代码如下所示。
+
+```java
+@GetMapping("/article/callHello2")
+public String callHello2() {
+    return restTemplate.getForObject("http://eureka-client-user-service/user/hello", String.class);
+}
+```
+
+## Eureka注册中心开启密码认证
+
+Eureka 自带了一个 Web 的管理页面，方便我们查询注册到上面的实例信息，但是有一个问题：如果在实际使用中，注册中心地址有公网 IP 的话，必然能直接访问到，这样是不安全的。所以我们需要对 Eureka 进行改造，加上权限认证来保证安全性。
+
+改造我们的 eureka-server，通过集成 Spring Security 来进行安全认证。
+
+在 pom.xml 中添加 Spring Security 的依赖包，代码如下所示。
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+```
+
+然后在 application.properties 中加上认证的配置信息：
+
+```properties
+spring.security.user.name=eureka     # 用户名
+spring.security.user.password=123456 # 密码
+```
+
+增加 Security 配置类：
+
+```java
+@Configuration
+@EnableWebSecurity
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        // 关闭csrf
+        http.csrf().disable();
+        // 支持httpBasic
+        http.authorizeRequests().anyRequest().authenticated().and().httpBasic();
+    }
+}
+```
+
+重新启动注册中心，访问 http://localhost:8761/，此时浏览器会提示你输入用户名和密码，输入正确后才能继续访问 Eureka 提供的管理页面。
+
+在 Eureka 开启认证后，客户端注册的配置也要加上认证的用户名和密码信息：
+
+```properties
+eureka.client.serviceUrl.defaultZone=http://zhangsan:123456@localhost:8761/eureka/
+```
+
+## 使用Eureka集群搭建实现高可用服务注册中心
+
+前面我们搭建的注册中心只适合本地开发使用，在生产环境中必须搭建一个集群来保证高可用。Eureka 的集群搭建方法很简单：每一台 Eureka 只需要在配置中指定另外多个 Eureka 的地址就可以实现一个集群的搭建了。
+
+下面我们以 2 个节点为例来说明搭建方式。假设我们有 master 和 slaveone 两台机器，需要做的就是：
+
+- 将 master 注册到 slaveone 上面。
+- 将 slaveone 注册到 master 上面。
+
+
+如果是 3 台机器，以此类推：
+
+- 将 master 注册到 slaveone 和 slavetwo 上面。
+
+- 将 slaveone 注册到 master 和 slavetwo 上面。
+
+- 将 slavetwo 注册到 master 和 slaveone 上面。
+
+  ### 搭建步骤
+
+  创建一个新的项目 eureka-server-cluster，配置跟 eureka-server 一样。
+
+  首先，我们需要增加 2 个属性文件，在不同的环境下启动不同的实例。增加 application-master.properties：
+
+```properties
+server.port=8761
+# 指向你的从节点的Eureka
+eureka.client.serviceUrl.defaultZone=http://用户名:密码@localhost:8762/eureka/
+```
+
+增加 application-slaveone.properties：
+
+```properties
+server.port=8762
+# 指向你的主节点的Eureka
+eureka.client.serviceUrl.defaultZone=http://用户名:密码 @localhost:8761/eureka/
+```
+
+在 application.properties 中添加下面的内容：
+
+```properties
+spring.application.name=eureka-server-cluster
+# 由于该应用为注册中心, 所以设置为false, 代表不向注册中心注册自己
+eureka.client.register-with-eureka=false
+# 由于注册中心的职责就是维护服务实例, 并不需要检索服务, 所以也设置为 false
+eureka.client.fetch-registry=false
+
+spring.security.user.name=zhangsan
+spring.security.user.password=123456
+
+# 指定不同的环境
+spring.profiles.active=master
+```
+
+在 A 机器上默认用 master 启动，然后在 B 机器上加上 --spring.profiles.active=slaveone 启动即可。
+
+这样就将 master 注册到了 slaveone 中，将 slaveone 注册到了 master 中，无论谁出现问题，应用都能继续使用存活的注册中心。
+
+之前在客户端中我们通过配置 eureka.client.serviceUrl.defaultZone 来指定对应的注册中心，当我们的注册中心有多个节点后，就需要修改 eureka.client.serviceUrl.defaultZone 的配置为多个节点的地址，多个地址用英文逗号隔开即可：
+
+```properties
+eureka.client.serviceUrl.defaultZone=http://zhangsan:123456@localhost:8761/eureka/,http://zhangsan:123456@localhost:8762/eureka/
+```
+
+## 自定义 Eureka 的 InstanceID
+
+客户端在注册时，服务的 Instance ID 的默认值的格式如下：
+
+```properties
+${spring.cloud.client.hostname}:${spring.application.name}:${spring.application. instance_id:${server.port}}
+```
+
+翻译过来就是“主机名：服务名称：服务端口”。当我们在 Eureka 的 Web 控制台查看服务注册信息的时候，就是这样的一个格式：
+
+```properties
+user-PC：eureka-client-user-service:8081
+```
+
+很多时候我们想把 IP 显示在上述格式中，此时，只要把主机名替换成 IP 就可以了，或者调整顺序也可以。可以改成下面的样子，用“服务名称：服务所在 IP：服务端口”的格式来定义：
+
+```properties
+eureka.instance.instance-id=${spring.application.name}:${spring.cloud.client.ip-address}:${server.port}
+```
+
+定义之后我们看到的就是 eureka-client-user-service：192.168.31.245:8081，一看就知道是哪个服务，在哪台机器上，端口是多少。
+
+我们还可以点击服务的 Instance ID 进行跳转，这个时候显示的名称虽然变成了 IP，但是跳转的链接却还是主机名。
+
+## 自定义实例跳转链接
+
+刚刚我们通过配置实现了用 IP 进行注册，当点击 Instance ID 进行跳转的时候，就可以用 IP 跳转了，跳转的地址默认是 IP:Port/info。我们可以自定义这个跳转的地址：
+
+```properties
+eureka.instance.status-page-url=http://localhost:8080/info
+```
+
+## Eureka开发时快速移除失效服务
+
+在实际开发过程中，我们可能会不停地重启服务，由于 Eureka 有自己的保护机制，节点下线后，服务信息还会一直存在于 Eureka 中。我们可以通过增加一些配置让移除的速度更快一点，当然**只在开发环境下使用，生产环境下不推荐使用**。
+
+首先在我们的 eureka-server 中增加两个配置，分别是**关闭自我保护**和**清理间隔**：
+
+```properties
+# 关闭自我保护
+eureka.server.enable-self-preservation=false
+# 清理间隔默认为 60000 毫秒
+eureka.server.eviction-interval-timer-in-ms=5000
+```
+
+然后在具体的客户端服务中配置下面的内容：
+
+```properties
+eureka.client.healthcheck.enabled=true
+# 默认 30 秒
+eureka.instance.lease-renewal-interval-in-seconds=5
+# 默认 90 秒
+eureka.instance.lease-expiration-duration-in-seconds=5
+```
+
+eureka.client.healthcheck.enabled 用于开启健康检查，需要在 pom.xml 中引入 actuator 的依赖，代码如下所示。
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+其中：
+
+- `eureka.instance.lease-renewal-interval-in-seconds` 表示 Eureka Client 发送心跳给 server 的频率。
+- `eureka.instance.lease-expiration-duration-in-seconds` 表示 Eureka Server 至上一次收到 client 的心跳之后，等待下一次心跳的超时时间，在这个时间内若没收到下一次心跳，则移除该 Instance。
+
+
+更多的 Instance 配置信息可参考源码中的配置类：`org.springframework.cloud.netflix.eureka.EurekaInstanceConfigBean`。
+
+更多的 Server 配置信息可参考源码中的配置类：`org.springframework.cloud.netflix.eureka.server.EurekaServerConfigBean`。
+
+## 服务上下线监控
+
+在某些特定的需求下，我们需要对服务的上下线进行监控，上线或下线都进行邮件通知，Eureka 中提供了事件监听的方式来扩展。
+
+目前支持的事件如下：
+
+- EurekaInstanceCanceledEvent 服务下线事件。
+- EurekaInstanceRegisteredEvent 服务注册事件。
+- EurekaInstanceRenewedEvent 服务续约事件。
+- EurekaRegistryAvailableEvent Eureka 注册中心启动事件。
+- EurekaServerStartedEvent Eureka Server 启动事件。
+
+
+基于 Eureka 提供的事件机制，可以监控服务的上下线过程，在过程发生中可以发送邮件来进行通知。下面代码只是演示了监控的过程，并未发送邮件。
+
+```java
+@Component
+public class EurekaStateChangeListener {
+    @EventListener
+    public void listen(EurekaInstanceCanceledEvent event) {
+        System.err.println(event.getServerId() + "\t" + event.getAppName() + " 服务下线 ");
+    }
+    @EventListener
+    public void listen(EurekaInstanceRegisteredEvent event) {
+        InstanceInfo instanceInfo = event.getInstanceInfo();
+        System.err.println(instanceInfo.getAppName() + " 进行注册 ");
+    }
+    @EventListener
+    public void listen(EurekaInstanceRenewedEvent event) {
+        System.err.println(event.getServerId() + "\t" + event.getAppName() + " 服务进行续约 ");
+    }
+    @EventListener
+    public void listen(EurekaRegistryAvailableEvent event) {
+        System.err.println(" 注册中心启动 ");
+    }
+    @EventListener
+    public void listen(EurekaServerStartedEvent event) {
+        System.err.println("Eureka Server启动 ");
+    }
+}
+```
+
+> 注意：在 Eureka 集群环境下，每个节点都会触发事件，这个时候需要控制下发送通知的行为，不控制的话每个节点都会发送通知。
+

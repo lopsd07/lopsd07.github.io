@@ -1,0 +1,93 @@
+# Spring Boot
+
+Spring Boot 是由 Pivotal 团队提供的全新框架，其设计目的是简化新 Spring 应用的初始搭建以及开发过程。该框架使用了特定的方式进行配置，从而使开发人员不再需要定义样板化的配置。
+
+Spring Boot 致力于在蓬勃发展的快速应用开发领域（rapid application development）成为领导者。
+
+在使用 Spring Boot 之前，我们需要搭建一个项目框架并配置各种第三方库的依赖，还需要在 XML 中配置很多内容。
+
+Spring Boot 完全打破了我们之前的使用习惯，一分钟就可以创建一个 Web 开发的项目；通过 Starter 的方式轻松集成第三方的框架；去掉了 XML 的配置，全部用注解代替。
+
+Spring Boot Starter 是用来简化 jar 包依赖的，集成一个框架只需要引入一个 Starter，然后在属性文件中配置一些值，整个集成的过程就结束了。
+
+不得不说，Spring Boot 在内部做了很多的处理，让开发人员使用起来更加简单了。
+
+下面笔者总结了一些使用 Spring Boot 开发的优点：
+
+- 基于 Spring 开发 Web 应用更加容易。
+- 采用基于注解方式的配置，避免了编写大量重复的 XML 配置。
+- 可以轻松集成 Spring 家族的其他框架，比如 Spring JDBC、Spring Data 等。
+- 提供嵌入式服务器，令开发和部署都变得非常方便。
+
+## 多环境配置
+
+在平时的开发中，项目会被部署到测试环境、生产环境，但是每个环境的数据库地址等配置信息都是不一样的。通过 profile 来激活不同环境下的配置文件就能解决配置信息不一样的问题。在 Spring Boot 中可以通过 spring.profiles.active=dev 来激活不同环境下的配置。
+
+可以定义多个配置文件，每个配置文件对应一个环境，格式为 application-环境.properties，如表 1 所示。
+
+
+
+| application.properties      | 通用配置，不区分环境 |
+| --------------------------- | -------------------- |
+| application-dev.properties  | 开发环境             |
+| application-test.properties | 测试环境             |
+| application-prod.properties | 生产环境             |
+
+
+在开发环境中，可以通过修改 application.properties 中的 spring.profiles.active 的值来激活对应环境的配置，在部署的时候可以通过 java–jar xxx.jar--spring.profiles.active=dev 来指定使用对应的配置。
+
+## 热部署
+
+开发过程中经常会改动代码，此时若想看下效果，就不得不停掉项目然后重启。
+
+对于 Spring Boot 项目来说，启动时间是非常快的，在微服务的架构下，每个服务只关注自己的业务，代码量也非常小，这个启动时间是可以容忍的。
+
+对于那些臃肿的单体老项目，启动时间简直是浪费生命。虽然 Spring Boot 启动很快，但是我们还是要自己去重启。能不能做到有改动，它就会悄无声息地自己把改动的地方重新加载一遍？答案是肯定的，通过 spring-boot-devtools 就可以实现。
+
+只需要添加 spring-boot-devtools 的依赖即可实现热部署功能，代码如下所示。
+
+```xml
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-devtools</artifactId>
+</dependency>
+```
+
+## actuator 监控
+
+Spring Boot 提供了一个用于监控和管理自身应用信息的模块，它就是 spring-boot-starter-actuator。该模块使用起来非常简单，只需要加入依赖即可，代码如下所示。
+
+```xml
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+
+
+表 2 Actuator端点信息
+
+| Http方法 | 路径                     | 描述                        | Http默认暴露 |
+| -------- | ------------------------ | --------------------------- | ------------ |
+| GET      | /actuator/conflgprops    | 查看配置属性，包含默认配置  | false        |
+| GET      | /actuator/beans          | 查看bean及其关系列表        | false        |
+| GET      | /actuator/heapdump       | 打印线程栈                  | false        |
+| GET      | /actuator/env            | 查看所有环境变量            | false        |
+| GET      | /actuator/env/ {name}    | 查看具体变量值              | true         |
+| GET      | /actuator/health         | 查看应用健康指标            | true         |
+| GET      | /actuator/info           | 查看应用信息                | false        |
+| GET      | /actuator/mappings       | 查看所有 URL 映射           | false        |
+| GET      | /actuator/metrics        | 查看应用基本指标            | false        |
+| GET      | /actuator/metrics/{name} | 查看具体指标                | false        |
+| POST     | /actuator/shutdown       | 关闭应用                    | false        |
+| GET      | /actuator/httptrace      | 查看基本追踪信息            | false        |
+| GET      | /actuator/loggers        | 显示应用程序中 loggers 配置 | false        |
+| GET      | /actuator/scheduledtasks | 显示定时任务                | false        |
+
+UP 表示当前应用处于健康状态，如果是 DOWN 就表示当前应用不健康。
+
+
+
+
+
