@@ -1,8 +1,13 @@
+const fs = require("fs");
+const path = require("path");
+
 module.exports = {
-    title: '我的随笔',  // 设置网站标题
+    title: '我的笔记',  // 设置网站标题
     description: 'My Notes',
     base: '',
+    theme: 'antdocs',
     themeConfig: {
+        // backToTop: true,
         logo: '/images/logo.png',
         nav: [
             {
@@ -27,21 +32,15 @@ module.exports = {
                     [{ text: 'Spring Cloud', link: '/cloud-native/spring-cloud/' }
                     ]
             },
-            { text: '数据库', link: '/database/' },
-            { text: '我的工具', link: '/tools/' },
+            // { text: '数据库', link: '/database/' },
+            { text: '常用工具', link: '/tools/' },
             { text: '附录', link: '/more/' },
             { text: 'Bing', link: 'https://bing.com' },
         ],
         sidebar: {
-            '/base/': [
-                {
-                    title: '基础',
-                    collapsable: true,
-                    children: [
-                        { title: '基础', path: '/base/' },
-                    ]
-                }
-            ],
+            '/base/': getSideBar('base', '基础'),
+            '/spring/': getSideBar('spring', 'Spring'),
+            '/cloud-native/spring-cloud/': getSideBar('cloud-native/spring-cloud', 'Spring Cloud'),
         },
         sidebarDepth: 2
     },
@@ -49,16 +48,42 @@ module.exports = {
     plugins: {
         '@vuepress/back-to-top': true,
         '@vuepress/last-updated': true,
-        '@vuepress/search': {
-            search: true, //默认false
-            searchMaxSuggestions: 10 // 默认是5
-        },
+        'reading-progress': true,
+        'fulltext-search': true,
+        // '@vuepress/search': {
+        //     search: true, //默认false
+        //     searchMaxSuggestions: 10 // 默认是5
+        // },
         '@vuepress/pwa': {
             serviceWorker: true,
             updatePopup: {
                 message: "有新的内容更新",
                 buttonText: "刷新"
             }
+        },
+        '@vuepress/active-header-links': {
+            sidebarLinkSelector: '.sidebar-link',
+            headerAnchorSelector: '.header-anchor'
+          },
+            "one-click-copy":
+            {
+                copyMessage: "复制成功！",
+                toolTipMessage: 'Copy to clipboard',
+            }
         }
-    }
 }
+
+function getSideBar(folder, title) {
+    const extension = [".md"];
+  
+    const files = fs
+      .readdirSync(path.join(`${__dirname}/../${folder}`))
+      .filter(
+        (item) =>
+          item.toLowerCase() != "readme.md" &&
+          fs.statSync(path.join(`${__dirname}/../${folder}`, item)).isFile() &&
+          extension.includes(path.extname(item))
+      );
+  
+    return [{ title: title, children: ["", ...files] }];
+  }
