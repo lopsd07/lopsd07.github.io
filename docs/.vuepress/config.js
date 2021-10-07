@@ -33,7 +33,10 @@ module.exports = {
                     ]
             },
             // { text: '数据库', link: '/database/' },
-            { text: '常用工具', link: '/tools/' },
+            {
+                text: '常用工具', ariaLabel: 'tools', items:
+                    [{ text: '测试', link: '/tools/testing/' }, { text: '系统', link: '/tools/system/' }]
+            },
             { text: '附录', link: '/more/' },
             { text: 'Bing', link: 'https://bing.com' },
         ],
@@ -41,6 +44,8 @@ module.exports = {
             '/base/': getSideBar('base', '基础'),
             '/spring/': getSideBar('spring', 'Spring'),
             '/cloud-native/spring-cloud/': getSideBar('cloud-native/spring-cloud', 'Spring Cloud'),
+            '/tools/testing/': getSideBar('tools/testing', '测试'),
+            '/tools/system/': getSideBar('tools/system', '系统'),
         },
         sidebarDepth: 2
     },
@@ -64,26 +69,26 @@ module.exports = {
         '@vuepress/active-header-links': {
             sidebarLinkSelector: '.sidebar-link',
             headerAnchorSelector: '.header-anchor'
-          },
-            "one-click-copy":
-            {
-                copyMessage: "复制成功！",
-                toolTipMessage: 'Copy to clipboard',
-            }
+        },
+        "one-click-copy":
+        {
+            copyMessage: "复制成功！",
+            toolTipMessage: 'Copy to clipboard',
         }
+    }
 }
 
 function getSideBar(folder, title) {
     const extension = [".md"];
-  
+
     const files = fs
-      .readdirSync(path.join(`${__dirname}/../${folder}`))
-      .filter(
-        (item) =>
-          item.toLowerCase() != "readme.md" &&
-          fs.statSync(path.join(`${__dirname}/../${folder}`, item)).isFile() &&
-          extension.includes(path.extname(item))
-      );
-  
+        .readdirSync(path.join(`${__dirname}/../${folder}`))
+        .filter(
+            (item) =>
+                item.toLowerCase() != "readme.md" &&
+                fs.statSync(path.join(`${__dirname}/../${folder}`, item)).isFile() &&
+                extension.includes(path.extname(item))
+        );
+
     return [{ title: title, children: ["", ...files] }];
-  }
+}
