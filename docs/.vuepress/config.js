@@ -46,6 +46,7 @@ module.exports = {
             '/cloud-native/spring-cloud/': getSideBar('cloud-native/spring-cloud', 'Spring Cloud'),
             '/tools/testing/': getSideBar('tools/testing', '测试'),
             '/tools/system/': getSideBar('tools/system', '系统'),
+            '/java/': getSideBar('java', 'Java'),
         },
         sidebarDepth: 2
     },
